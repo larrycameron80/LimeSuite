@@ -807,12 +807,11 @@ int FPGA::SetInterfaceFreq(double txRate_Hz, double rxRate_Hz, int channel)
     clocks[1] = clocks[0];
     if (SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2)!=0)
     {
-        status = -1;
         clocks[0].index = 0;
         clocks[0].phaseShift_deg = 0;
         clocks[0].findPhase = false;
         clocks[1].findPhase = false;
-        SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2);
+        status = SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2);
     }
 
     {
@@ -836,12 +835,11 @@ int FPGA::SetInterfaceFreq(double txRate_Hz, double rxRate_Hz, int channel)
     WriteRegister(0x000A, 0x0200);
     if (SetPllFrequency(pll_ind, txRate_Hz, clocks, 2)!=0)
     {
-        status = -1;
         clocks[0].index = 0;
         clocks[0].phaseShift_deg = 0;
         clocks[0].findPhase = false;
         clocks[1].findPhase = false;
-        SetPllFrequency(pll_ind, txRate_Hz, clocks, 2);
+        status |= SetPllFrequency(pll_ind, txRate_Hz, clocks, 2);
     }
 
     //Restore registers
