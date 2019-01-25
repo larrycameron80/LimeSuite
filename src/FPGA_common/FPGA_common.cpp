@@ -492,7 +492,7 @@ int FPGA::SetDirectClocking(int clockIndex)
         return ReportError(ENODEV, "SetDirectClocking: device not connected");
 
     uint16_t drct_clk_ctrl_0005 = ReadRegister(0x0005);
-    uint16_t drct_clk_ctrl_0006 = ReadRegister(0x0006);
+    //uint16_t drct_clk_ctrl_0006 = ReadRegister(0x0006);
     vector<uint32_t> addres;
     vector<uint32_t> values;
     //enable direct clocking
@@ -952,6 +952,8 @@ double FPGA::DetectRefClk(double fx3Clk)
         else
             delta = fabs(count - clkTbl[i++]);
 
+    if (i == 0)
+        return -1;
     lime::info("Reference clock %1.2f MHz", clkTbl[i - 1] / 1e6);
     return clkTbl[i - 1];
 }

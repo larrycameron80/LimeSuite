@@ -22,11 +22,22 @@ public:
 private:
 };
 
+class LMS7_CoreSDR : public LMS7_LimeSDR
+{
+public:
+    LMS7_CoreSDR(lime::IConnection* conn, LMS7_Device *obj = nullptr);
+    std::vector<std::string> GetProgramModes() const override;
+    int SetPath(bool tx, unsigned chan, unsigned path) override;
+private:
+    int SetRFSwitch(bool isTx, unsigned path, int chan);
+};
+
 class LMS7_LimeSDR_PCIE : public LMS7_Generic
 {
 public:
     LMS7_LimeSDR_PCIE(lime::IConnection* conn, LMS7_Device *obj = nullptr);
     std::vector<std::string> GetProgramModes() const override;
+    int SetRate(double f_Hz, int oversample) override;
 private:
 };
 

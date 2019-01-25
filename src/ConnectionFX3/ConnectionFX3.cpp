@@ -717,7 +717,7 @@ void ConnectionFX3::AbortSending(int ep)
 int ConnectionFX3::GetBuffersCount() const
 {
     return USB_MAX_CONTEXTS;
-};
+}
 
 int ConnectionFX3::CheckStreamSize(int size)const
 {

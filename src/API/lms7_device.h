@@ -61,7 +61,7 @@ public:
     double GetNCOFreq(bool tx, unsigned ch, int ind) const;
     int SetNCOPhase(bool tx, unsigned ch, int ind, double phase);
     double GetNCOPhase(bool tx, unsigned ch, int ind) const;
-    int Calibrate(bool dir_tx, unsigned chan, double bw, unsigned flags);
+    virtual int Calibrate(bool dir_tx, unsigned chan, double bw, unsigned flags);
     virtual std::vector<std::string> GetProgramModes() const;
     virtual int Program(const std::string& mode, const char* data, size_t len, lime::IConnection::ProgrammingCallback callback) const;
     double GetClockFreq(unsigned clk_id, int channel = -1) const;
@@ -113,7 +113,6 @@ protected:
     lime::IConnection* connection;
     std::vector<lime::LMS7002M*> lms_list;
     lime::LMS7002M* SelectChannel(unsigned chan) const;
-    int ConfigureTXLPF(bool enabled,int ch, double bandwidth);
     unsigned lms_chip_id;
     std::vector<lime::Streamer*> mStreamers;
     lime::FPGA* fpga;

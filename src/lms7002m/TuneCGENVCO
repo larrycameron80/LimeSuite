@@ -1,0 +1,62 @@
+int LMS7002M::TuneCGENVCO()
+{
+#ifndef NDEBUG
+    lime::debug("ICT_VCO_CGEN: %d", Get_SPI_Reg_bits(LMS7param(ICT_VCO_CGEN)));
+#endif
+    // Initialization activate VCO and comparator
+    if(int status = Modify_SPI_Reg_bits (LMS7_PD_VCO_CGEN.address, 2, 1, 0) != 0)
+        return status;
+
+    auto checkCSW = [this] (int cswVal){
+            Modify_SPI_Reg_bits (LMS7_CSW_VCO_CGEN, cswVal);    //write CSW value
+            this_thread::sleep_for(chrono::microseconds(50)); //comparator settling time
+            return Get_SPI_Reg_bits(LMS7_VCO_CMPHO_CGEN.address, 13, 12, true); //read comparators
+        };
+
+    int csw = 127, cswHigh = 256, cswLow = -1;
+    for (int step = 64; step > 0; step>>=1)
+    {
+        auto cmphl = checkCSW(csw);
+        if (cmphl == 0)
+        {
+            cswLow = csw;
+            csw += step;
+        }
+        else if (cmphl == 3)
+        {
+            cswHigh = csw;
+            csw -= step;
+        }
+        else
+            break;
+    }
+    printf ("low %d; high %d; csw %d\n", cswLow, cswHigh, csw);
+    int step = (csw-cswLow)/2 < 3 ? (csw-cswLow)/2 : 4;
+    cswLow = csw;
+    while (step > 0)
+    {
+        auto cmphl = checkCSW(cswLow-step);
+        printf("low %d (%d)\n", cswLow-step, cmphl);
+        if (cmphl != 0)
+            cswLow = cswLow-step;
+        step>>=1;
+    }
+
+    step = (cswHigh-csw)/2 < 3 ? (cswHigh-csw)/2 : 4;
+    cswHigh = csw;
+    while (step > 0)
+    {
+        auto cmphl = checkCSW(cswHigh+step);
+        printf("high %d (%d)\n", cswHigh+step, cmphl);
+        if (cmphl == 2)
+            cswHigh = cswHigh+step;
+        step>>=1;
+    }
+    printf ("low %d; high %d\n", cswLow, cswHigh);
+
+    auto cmphl = checkCSW((cswHigh+cswLow)/2);
+    if(cmphl == 2)
+        return 0;
+    lime::error("TuneVCO(CGEN) - failed to lock (cmphl!=%d)", cmphl);
+    return -1;
+}

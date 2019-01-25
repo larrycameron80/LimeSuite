@@ -62,6 +62,10 @@ LMS7_Device* LMS7_Device::CreateDevice(const lime::ConnectionHandle& handle, LMS
         device = new LMS7_qLimeSDR(conn,obj);
     else if (info.deviceName == lime::GetDeviceName(lime::LMS_DEV_LIMESDR_PCIE))
         device = new LMS7_LimeSDR_PCIE(conn,obj);
+    else if (info.deviceName == lime::GetDeviceName(lime::LMS_DEV_LIMENET_MICRO))
+        device = new LMS7_LimeNET_micro(conn,obj);
+    else if (info.deviceName == lime::GetDeviceName(lime::LMS_DEV_LIMESDR_CORE_SDR))
+        device = new LMS7_CoreSDR(conn,obj);
     else if (info.deviceName != lime::GetDeviceName(lime::LMS_DEV_UNKNOWN))
         device = new LMS7_LimeSDR(conn,obj);
     else
@@ -127,13 +131,13 @@ int LMS7_Device::ConfigureGFIR(bool tx, unsigned ch, bool enabled, double bandwi
 
     bandwidth /= 1e6;
     lime::LMS7002M* lms = SelectChannel(ch);
-    
-    if (bandwidth <= 0)
+
+    if (enabled && bandwidth <= 0)
     {
         lime::warning("GFIR LPF cannot be set to the requested bandwidth");
         enabled = false;
     }
-    
+
     if (enabled)
     {
         double interface_MHz;
@@ -268,34 +272,8 @@ int LMS7_Device::ConfigureGFIR(bool tx, unsigned ch, bool enabled, double bandwi
         || (lms->SetGFIRCoefficients(tx, 1, gfir2, 40) != 0)
         || (lms->SetGFIRCoefficients(tx, 2, gfir1, 120) != 0))
         return -1;
-    
+
     return lms->ResetLogicregisters();
-}
-
-int LMS7_Device::ConfigureTXLPF(bool enabled, int ch,double bandwidth)
-{
-    lime::LMS7002M* lms = SelectChannel(ch);
-    if (enabled)
-    {
-        if (lms->Modify_SPI_Reg_bits(LMS7param(PD_LPFH_TBB), 0) != 0)
-            return -1;
-        lms->Modify_SPI_Reg_bits(LMS7param(PD_LPFLAD_TBB), 0);
-        lms->Modify_SPI_Reg_bits(LMS7param(PD_LPFS5_TBB), 0);
-
-            if (bandwidth > 0)
-            {
-                if (lms->TuneTxFilter(bandwidth) != 0)
-                    return -1;
-            }
-    }
-    else
-    {
-        lms->Modify_SPI_Reg_bits(LMS7param(PD_LPFLAD_TBB), 1);
-        lms->Modify_SPI_Reg_bits(LMS7param(PD_LPFS5_TBB), 1);
-        return lms->Modify_SPI_Reg_bits(LMS7param(PD_LPFH_TBB), 1);
-    }
-    lime::info("TX LPF configured");
-    return 0;
 }
 
 unsigned LMS7_Device::GetNumChannels(const bool tx) const
@@ -797,7 +775,7 @@ LMS7_Device::Range LMS7_Device::GetLPFRange(bool tx, unsigned chan) const
 int LMS7_Device::SetGFIRCoef(bool tx, unsigned chan, lms_gfir_t filt, const double* coef,unsigned count)
 {
     short gfir[120];
-    int L;
+    unsigned int L;
     int div = 1;
     int ret = 0;
 
@@ -856,7 +834,7 @@ int LMS7_Device::SetGFIRCoef(bool tx, unsigned chan, lms_gfir_t filt, const doub
     unsigned sample = 0;
     for(int i=0; i< (filt==LMS_GFIR3 ? 15 : 5); i++)
     {
-        for(int j=0; j<8; j++)
+        for(unsigned int j=0; j<8; j++)
         {
             if( (j < L) && (sample < count) )
             {
@@ -1305,9 +1283,16 @@ int LMS7_Device::SetFrequency(bool isTx, unsigned chan, double f_Hz)
         if (setTDD(30e6) != 0)
             return -1;
         channels[chan].cF_offset_nco = 30e6-f_Hz;
-        if (SetRate(isTx,GetRate(isTx,chan),2)!=0)
-            return -1;
-        return 0;
+        double rf_rate;
+        double rate = GetRate(isTx, chan, &rf_rate);
+        if (channels[chan].cF_offset_nco+rate/2.0 >= rf_rate/2.0)
+        {
+            if (SetRate(isTx, rate, 2)!=0)
+                return -1;
+            return 0;
+        }
+        else
+            return SetNCOFreq(isTx, chan, 0, channels[chan].cF_offset_nco * (isTx ? -1.0 : 1.0));
     }
 
     if (channels[chan].cF_offset_nco != 0)
@@ -1435,7 +1420,7 @@ int LMS7_Device::Program(const std::string& mode, const char* data, size_t len, 
         return lime::ReportError(EINVAL, "Device not connected");
 
     if (mode == program_mode::autoUpdate)
-        return this->connection->ProgramUpdate(true, callback);
+        return this->connection->ProgramUpdate(true, true, callback);
     if (mode == program_mode::fx3Flash)
         return this->connection->ProgramWrite(data, len, 2, 1, callback);
     else if (mode == program_mode::fx3RAM)
