@@ -799,19 +799,34 @@ int FPGA::SetInterfaceFreq(double txRate_Hz, double rxRate_Hz, int channel)
         connection->WriteLMS7002MSPI(dataWr.data(), setRegCnt, channel);
     }
 
+    bool phaseSearchSuccess = false;
+
     lime::FPGA::FPGA_PLL_clock clocks[2];
-    clocks[0].index = 1;
-    clocks[0].outFrequency = bypassRx ? 2*rxRate_Hz : rxRate_Hz;
-    clocks[0].phaseShift_deg = rxPhC1 + rxPhC2 * rxRate_Hz;
-    clocks[0].findPhase = true;
-    clocks[1] = clocks[0];
-    if (SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2)!=0)
+    for (int i = 0; i < 20; i++)
     {
+    	clocks[0].index = 1;
+    	clocks[0].outFrequency = bypassRx ? 2*rxRate_Hz : rxRate_Hz;
+    	clocks[0].phaseShift_deg = rxPhC1 + rxPhC2 * rxRate_Hz;
+    	clocks[0].findPhase = true;
+    	clocks[1] = clocks[0];
+    	if (SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2)==0)
+	{
+	    lime::info("LML RX phase search OK");
+	    phaseSearchSuccess = true;
+	    break;
+	}
+	else
+	    lime::info("LML RX phase search FAIL");
+    }
+
+    if (!phaseSearchSuccess)
+    {
+	status = -1;
         clocks[0].index = 0;
         clocks[0].phaseShift_deg = 0;
         clocks[0].findPhase = false;
         clocks[1].findPhase = false;
-        status = SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2);
+        SetPllFrequency(pll_ind+1, rxRate_Hz, clocks, 2);
     }
 
     {
@@ -827,19 +842,33 @@ int FPGA::SetInterfaceFreq(double txRate_Hz, double rxRate_Hz, int channel)
         connection->WriteLMS7002MSPI(dataWr.data(), setRegCnt, channel);
     }
 
-    clocks[0].index = 1;
-    clocks[0].outFrequency = bypassTx ? 2*txRate_Hz:txRate_Hz;
-    clocks[0].phaseShift_deg = txPhC1 + txPhC2 * txRate_Hz;
-    clocks[0].findPhase = true;
-    clocks[1] = clocks[0];
-    WriteRegister(0x000A, 0x0200);
-    if (SetPllFrequency(pll_ind, txRate_Hz, clocks, 2)!=0)
+    phaseSearchSuccess = false;
+    for (int i = 0; i < 20; i++)
     {
+	 clocks[0].index = 1;
+	 clocks[0].outFrequency = bypassTx ? 2*txRate_Hz:txRate_Hz;
+	 clocks[0].phaseShift_deg = txPhC1 + txPhC2 * txRate_Hz;
+	 clocks[0].findPhase = true;
+	 clocks[1] = clocks[0];
+	 WriteRegister(0x000A, 0x0200);
+   	 if (SetPllFrequency(pll_ind, txRate_Hz, clocks, 2)==0)
+	 {
+	     lime::info("LML TX phase search OK");
+	     phaseSearchSuccess = true;
+	     break;
+	 }
+         else
+             lime::info("LML TX phase search FAIL");
+    }
+
+    if (!phaseSearchSuccess)
+    {
+	status = -1;
         clocks[0].index = 0;
         clocks[0].phaseShift_deg = 0;
         clocks[0].findPhase = false;
         clocks[1].findPhase = false;
-        status |= SetPllFrequency(pll_ind, txRate_Hz, clocks, 2);
+        SetPllFrequency(pll_ind, txRate_Hz, clocks, 2);
     }
 
     //Restore registers
