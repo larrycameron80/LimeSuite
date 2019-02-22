@@ -5,7 +5,6 @@
  * Created on September 18, 2016
  */
 #include "LimeSDR_mini.h"
-#include "lime/LimeSuite.h"
 #include "Logger.h"
 #include "FPGA_Mini.h"
 #include "device_constants.h"
@@ -80,6 +79,7 @@ int LMS7_LimeSDR_mini::Init()
     lms->Modify_SPI_Reg_bits(LMS7param(MAC), 1);
     for (auto i : initVals)
         lms->SPI_write(i.adr, i.val, true);
+    lms->EnableChannel(true, false);
 
     lms->Modify_SPI_Reg_bits(LMS7param(MAC), 2);
     lms->SPI_write(0x0123, 0x000F);  //SXT
@@ -90,10 +90,6 @@ int LMS7_LimeSDR_mini::Init()
 
     lms->Modify_SPI_Reg_bits(LMS7param(MAC), 1);
 
-    if (SetFrequency(true,0,1250e6)!=0)
-        return -1;
-    if (SetFrequency(false,0,1200e6)!=0)
-        return -1;
     if (SetRate(15.36e6, 1)!=0)
         return -1;
 
@@ -348,86 +344,6 @@ int LMS7_LimeSDR_mini::AutoRFPath(bool isTx, double f_Hz)
     }
     return ret;
 }
-
-LMS7_LimeNET_micro::LMS7_LimeNET_micro(lime::IConnection* conn, LMS7_Device *obj):
-    LMS7_LimeSDR_mini(conn, obj)
-{
-}
-
-std::vector<std::string> LMS7_LimeNET_micro::GetPathNames(bool dir_tx, unsigned chan) const
-{
-    if (dir_tx)
-        return {"NONE", "BAND1", "BAND2", "Auto"};
-    else
-	return {"NONE", "LNAH", "LNAL", "LNAW_NC", "Auto"};
-}
-
-int LMS7_LimeNET_micro::SetRFSwitch(bool isTx, unsigned path)
-{
-    int bom_ver = (fpga->ReadRegister(3)>>4);
-    if (isTx==false)
-    {
-        if (path==LMS_PATH_LNAW)
-        {
-            lime::warning("LNAW has no connection to RF ports");
-        }
-        else if (path==LMS_PATH_LNAL)
-        {
-            uint16_t value = fpga->ReadRegister(0x17);
-            value &= ~(3<<8);
-            fpga->WriteRegister(0x17, value | (1<<8));
-        }
-        else if (path==LMS_PATH_LNAH)
-        {
-            uint16_t value = fpga->ReadRegister(0x17);
-            value &= ~(3<<8);
-            if (bom_ver == 0)
-                fpga->WriteRegister(0x17, value | (1<<8));
-            else
-                fpga->WriteRegister(0x17, value | (2<<8));
-        }
-    }
-    else
-    {
-        if (path==LMS_PATH_TX1)
-        {
-            uint16_t value = fpga->ReadRegister(0x17);
-            value &= ~(3<<12);
-            fpga->WriteRegister(0x17, value | (1<<12));
-        }
-        else if (path==LMS_PATH_TX2)
-        {
-            uint16_t value = fpga->ReadRegister(0x17);
-            value &= ~(3<<12);
-            if (bom_ver == 0)
-                fpga->WriteRegister(0x17, value | (1<<12));
-            else
-                fpga->WriteRegister(0x17, value | (2<<12));
-        }
-    }
-    return 0;
-}
-
-std::vector<std::string> LMS7_LimeNET_micro::GetProgramModes() const
-{
-    return {program_mode::fpgaFlash, program_mode::fpgaReset,
-            program_mode::mcuRAM, program_mode::mcuEEPROM, program_mode::mcuReset};
-}
-
-int LMS7_LimeNET_micro::AutoRFPath(bool isTx, double f_Hz)
-{
-    if ((fpga->ReadRegister(3)>>4) == 0)
-        return 0;
-    if ((!isTx) && (f_Hz < 1.7e9))
-    {
-        lime::info("Selected RX path: LNAL");
-        int ret = SetPath(false, 0, LMS_PATH_LNAL);
-        auto_rx_path = true;
-        return ret;
-    }
-    return LMS7_LimeSDR_mini::AutoRFPath(isTx, f_Hz);
-}
-
 
 }//namespace lime
 
